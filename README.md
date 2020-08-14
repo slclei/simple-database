@@ -22,3 +22,5 @@ This is a simple database written by C, referenced from https://cstack.github.io
 
 # Thoughts during debuging:
 1 Debug is necessary and helpful. Try simple case first, and then edge case.
+
+2 Auto test?
