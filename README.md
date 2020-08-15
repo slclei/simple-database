@@ -24,3 +24,5 @@ This is a simple database written by C, referenced from https://cstack.github.io
 1 Debug is necessary and helpful. Try simple case first, and then edge case.
 
 2 Auto test is more difficult than my thought.
+
+3 Careful for input with scanf. Scanf will keep everything to the target buffer, and if the length is longer than designed, additional data will be stored in other location, resulting in buffer overflow.
