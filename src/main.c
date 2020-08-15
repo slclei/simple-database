@@ -8,8 +8,9 @@
 #define COLUMN_EMAIL_SIZE 255
 typedef struct {
     uint32_t id;
-    char username[COLUMN_USERNAME_SIZE];
-    char email[COLUMN_EMAIL_SIZE];
+    //additional one is for null
+    char username[COLUMN_USERNAME_SIZE+1];
+    char email[COLUMN_EMAIL_SIZE+1];
 } Row;
 
 //enums for success of failure for meta command
@@ -21,8 +22,10 @@ typedef enum {
 //enums for success of failure for prepare step (compiler)
 typedef enum {
     PREPARE_SUCCESS,
+    PREPAR_NEGATIVE_ID,
     PREPARE_UNRECOGNIZED_STATEMENT,
-    PREPARE_SYNTAX_ERROR
+    PREPARE_SYNTAX_ERROR,
+    PREPARE_STRING_TOO_LONG
 } PrepareResult;
 
 //statement type, TODO
@@ -182,19 +185,48 @@ MetaCommandResult do_meta_command(InputBuffer* input_buffer, Table* table) {
     }
 }
 
+//check if input will cause buffer overflow
+PrepareResult prepare_insert(InputBuffer* input_buffer, Statement* statement){
+    //change statement type to be insert
+    statement->type = STATEMENT_INSERT;
+
+    //parse insert commond into 4 sections for latter checking
+    char* keyword=strtok(input_buffer->buffer, " ");
+    char* id_string=strtok(NULL, " ");
+    char* username=strtok(NULL, " ");
+    char* email=strtok(NULL, " ");
+
+    //in case of any field is null, return syntax code
+    if(id_string==NULL || username==NULL || email==NULL){
+        return PREPARE_SYNTAX_ERROR;
+    }
+
+    //convert id to int
+    int id = atoi(id_string);
+    //check if id is negtive
+    if (id<0){
+        return PREPAR_NEGATIVE_ID;
+    }
+
+    //check length for username and email
+    if (strlen(username)>COLUMN_USERNAME_SIZE || strlen(email)>COLUMN_EMAIL_SIZE){
+        return PREPARE_STRING_TOO_LONG;
+    }
+
+    //save each field into statement
+    statement->row_to_insert.id=id;
+    strcpy(statement->row_to_insert.username, username);
+    strcpy(statement->row_to_insert.email, email);
+
+    return PREPARE_SUCCESS;
+}
+
 //works as SQL Compiler, to parse command
 PrepareResult prepare_statement(InputBuffer* input_buffer, Statement* statement){
     //in case of insert command
     if (strncmp(input_buffer->buffer,"insert", 6)==0){
-        statement->type=STATEMENT_INSERT;
-        //Insert new row, and store it from input_buffer to statement->row_to_insert
-        int args_assigned=sscanf(input_buffer->buffer, "insert %d %s %s", &(statement->row_to_insert.id),statement->row_to_insert.username,statement->row_to_insert.email);
-
-        //check if args_assigned is >=3
-        if (args_assigned<3){
-            return PREPARE_SYNTAX_ERROR;
-        }
-        return PREPARE_SUCCESS;
+        //use prepare_insert, instead of scanf, to avoid buffer overflow
+        return prepare_insert(input_buffer, statement);
     }
     //in case of select command
     if (strcmp(input_buffer->buffer,"select")==0){
@@ -281,6 +313,12 @@ int main(int argc, char* argv[]){
         switch (prepare_statement(input_buffer, &statement)){
             case (PREPARE_SUCCESS):
                 break;
+            case (PREPAR_NEGATIVE_ID):
+                printf("ID must be positive.\n");
+                continue;
+            case (PREPARE_STRING_TOO_LONG):
+                printf("String is too long.\n");
+                continue;
             case (PREPARE_SYNTAX_ERROR):
                 printf("SYntax error. could not parse statement.\n");
                 continue;
